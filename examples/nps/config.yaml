@@ -1,0 +1,66 @@
+# OpenEvolve configuration for NPS feature engineering
+max_iterations: 200
+checkpoint_interval: 10
+
+# LLM configuration — adjust api_base and model names to your provider
+llm:
+  primary_model: "gemini-2.5-flash"
+  primary_model_weight: 0.8
+  secondary_model: "gemini-2.5-flash-lite"
+  secondary_model_weight: 0.2
+  api_base: "https://generativelanguage.googleapis.com/v1beta/openai/"
+  temperature: 0.8
+  max_tokens: 16000
+  timeout: 120
+
+# Prompt configuration
+prompt:
+  system_message: |
+    You are an expert data scientist specializing in feature engineering and symbolic regression.
+    Your task is to improve the `engineer_features` function that creates high-order features
+    for an XGBoost binary classifier (NPS prediction task).
+
+    The dataset has 500 original features named feat_0 through feat_499.
+    Current baseline: ROC AUC = 0.9086, macro F1 = 0.84.
+    Goal: maximize both ROC AUC and macro F1 by constructing better engineered features.
+
+    Techniques to explore:
+    - Pairwise products: feat_i * feat_j
+    - Ratios: feat_i / (feat_j + 1e-8)
+    - Polynomial: feat_i ** 2, feat_i ** 3
+    - Transcendental: np.log1p(np.abs(feat_i)), np.exp(np.clip(feat_i, -10, 10))
+    - Aggregations: row-wise mean/std/min/max of feature subsets
+    - Differences: feat_i - feat_j, np.abs(feat_i - feat_j)
+    - Conditional interactions: (feat_i > 0).astype(float) * feat_j
+    - Rank features: feat_i.rank(pct=True)
+
+    Important constraints:
+    - Always ensure numerical stability (add epsilon before division, clip before exp, abs before sqrt/log)
+    - Apply the SAME transformations to both train_df and val_df
+    - Keep the number of new features between 5 and 50
+    - Only use numpy and pandas operations (already imported)
+    - You MAY drop original feat_* columns if they are redundant or noisy — feature selection is encouraged
+    - Do NOT drop the target column
+    - The function signature must remain: engineer_features(train_df, val_df) -> (train_df, val_df)
+  num_top_programs: 3
+  num_diverse_programs: 2
+
+# Database configuration
+database:
+  population_size: 50
+  archive_size: 20
+  num_islands: 3
+  elite_selection_ratio: 0.2
+  exploitation_ratio: 0.7
+  similarity_threshold: 0.99
+
+# Evaluator configuration
+evaluator:
+  timeout: 300
+  cascade_evaluation: true
+  cascade_thresholds: [0.3]
+  parallel_evaluations: 2
+
+# Evolution settings
+diff_based_evolution: true
+max_code_length: 20000
