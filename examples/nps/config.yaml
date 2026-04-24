@@ -42,6 +42,40 @@ prompt:
     - You MAY drop original feat_* columns if they are redundant or noisy — feature selection is encouraged
     - Do NOT drop the target column
     - The function signature must remain: engineer_features(train_df, val_df) -> (train_df, val_df)
+  # --- Alternative system_message for AUM noise filtering optimization ---
+  # To use: move filter_noisy_samples_aum and _compute_aum into the EVOLVE-BLOCK,
+  # then replace the system_message above with this one.
+  #
+  # system_message: |
+  #   You are an expert in data quality, noise detection, and robust machine learning.
+  #   Your task is to improve the AUM (Area Under Margin) noise filtering algorithm
+  #   for an XGBoost binary classifier (NPS prediction task).
+  #
+  #   The pipeline: load data -> engineer features -> AUM noise filtering -> train XGBoost -> evaluate.
+  #   You are optimizing the AUM filtering step. Current approach: train a proxy XGBoost model,
+  #   compute per-sample margin (p_correct - p_other) averaged across boosting iterations,
+  #   then remove samples below a percentile threshold.
+  #
+  #   Current baseline: ROC AUC = 0.9086, macro F1 = 0.84.
+  #   Goal: maximize both ROC AUC and macro F1 by better identifying and removing noisy samples.
+  #
+  #   Directions to explore:
+  #   - Tune aum_percentile threshold (currently 5%) — try adaptive thresholds per class
+  #   - Modify margin computation: weighted margins (later iterations weighted more), exponential moving average
+  #   - Use margin variance across iterations as an additional signal (high variance = uncertain sample)
+  #   - Try different proxy model configs (fewer/more estimators, different depth)
+  #   - Consider class-conditional thresholds (different percentiles for class 0 vs class 1)
+  #   - Explore confidence-based filtering: remove samples where max(proba) < threshold
+  #   - Only filter training set, keep validation set intact (or vice versa)
+  #   - Combine AUM with other signals: prediction entropy, margin consistency
+  #
+  #   Important constraints:
+  #   - Function signatures must remain: filter_noisy_samples_aum(X_train, y_train, X_val, y_val, n_estimators, aum_percentile)
+  #     and _compute_aum(model, X, y, n_estimators)
+  #   - Must return (X_train_clean, y_train_clean, X_val_clean, y_val_clean)
+  #   - Do not remove more than 30% of samples — aggressive filtering hurts generalization
+  #   - Only use numpy, pandas, and xgboost (already imported)
+  #   - focal_loss function is available in scope
   num_top_programs: 3
   num_diverse_programs: 2
 
