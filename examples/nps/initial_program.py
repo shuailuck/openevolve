@@ -44,34 +44,72 @@ def focal_loss(y_true, y_pred, alpha=0.5, gamma=2):
     return gradient, hessian
 
 
+def _compute_aum(model, X, y, n_estimators):
+    n_samples = len(y)
+    margins_sum = np.zeros(n_samples)
+    y_arr = y.values.astype(int)
+    idx = np.arange(n_samples)
+    for i in range(1, n_estimators + 1):
+        proba = model.predict_proba(X, iteration_range=(0, i))
+        margins_sum += proba[idx, y_arr] - proba[idx, 1 - y_arr]
+    return margins_sum / n_estimators
+
+
+def filter_noisy_samples_aum(X_train, y_train, X_val, y_val,
+                              n_estimators=300, aum_percentile=5):
+    pos_count = np.sum(y_train == 1)
+    neg_count = np.sum(y_train == 0)
+    scale_pos_weight = neg_count / max(pos_count, 1) if pos_count > 0 else 1
+
+    aum_model = XGBClassifier(
+        objective=focal_loss, eval_metric="auc",
+        scale_pos_weight=scale_pos_weight, seed=42,
+        max_depth=5, learning_rate=0.03, subsample=0.6,
+        colsample_bytree=0.6, n_estimators=n_estimators,
+    )
+    aum_model.fit(X_train, y_train, verbose=False)
+
+    train_aum = _compute_aum(aum_model, X_train, y_train, n_estimators)
+    val_aum = _compute_aum(aum_model, X_val, y_val, n_estimators)
+
+    train_mask = train_aum >= np.percentile(train_aum, aum_percentile)
+    val_mask = val_aum >= np.percentile(val_aum, aum_percentile)
+
+    return (X_train[train_mask].reset_index(drop=True),
+            y_train[train_mask].reset_index(drop=True),
+            X_val[val_mask].reset_index(drop=True),
+            y_val[val_mask].reset_index(drop=True))
+
+
 def run(data_dir):
     train_df = pd.read_csv(os.path.join(data_dir, "train_data_500f.csv.gz"))
     val_df = pd.read_csv(os.path.join(data_dir, "val_data_500f.csv.gz"))
 
+    orig_cols = set(train_df.columns)
     train_df, val_df = engineer_features(train_df, val_df)
 
-    for df in [train_df, val_df]:
-        df.replace([np.inf, -np.inf], np.nan, inplace=True)
-        df.fillna(0, inplace=True)
+    new_cols = [c for c in train_df.columns if c not in orig_cols]
+    if new_cols:
+        for df in [train_df, val_df]:
+            df[new_cols] = df[new_cols].replace([np.inf, -np.inf], np.nan).fillna(0)
 
     feature_cols = [c for c in train_df.columns if c != "target"]
     X_train, y_train = train_df[feature_cols], train_df["target"]
     X_val, y_val = val_df[feature_cols], val_df["target"]
+
+    X_train, y_train, X_val, y_val = filter_noisy_samples_aum(
+        X_train, y_train, X_val, y_val, n_estimators=300, aum_percentile=5
+    )
 
     pos_count = np.sum(y_train == 1)
     neg_count = np.sum(y_train == 0)
     scale_pos_weight = neg_count / max(pos_count, 1)
 
     model = XGBClassifier(
-        objective=focal_loss,
-        eval_metric="auc",
-        scale_pos_weight=scale_pos_weight,
-        seed=42,
-        max_depth=5,
-        learning_rate=0.03,
-        subsample=0.6,
-        colsample_bytree=0.6,
-        n_estimators=300,
+        objective=focal_loss, eval_metric="auc",
+        scale_pos_weight=scale_pos_weight, seed=42,
+        max_depth=5, learning_rate=0.03, subsample=0.6,
+        colsample_bytree=0.6, n_estimators=300,
     )
     model.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)
 
