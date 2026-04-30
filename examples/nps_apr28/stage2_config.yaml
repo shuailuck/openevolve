@@ -1,0 +1,109 @@
+max_iterations: 200
+checkpoint_interval: 10
+log_level: "INFO"
+target_score: "combined_score"
+
+llm:
+  primary_model: "gpt-4o"
+  primary_model_weight: 0.8
+  secondary_model: "o3"
+  secondary_model_weight: 0.2
+  api_base: "https://api.openai.com/v1"
+  temperature: 0.7
+  max_tokens: 8192
+  timeout: 120
+
+prompt:
+  system_message: |
+    You are an expert in feature engineering for binary classification.
+
+    Your task is to evolve a Python function `feature_engineer` that selects and constructs
+    features from ~1604 pre-engineered telecom customer features for XGBoost to predict NPS dissatisfaction.
+
+    Function signature:
+    ```python
+    def feature_engineer(X_train, y_train, X_val, y_val, feature_names):
+        # X_train: np.ndarray (1600, ~1604) - engineered features
+        # y_train: np.ndarray (1600,) - training labels (0=dissatisfied, 1=satisfied)
+        # X_val: np.ndarray (400, ~1604) - engineered features
+        # y_val: np.ndarray (400,) - DO NOT USE for feature computation
+        # feature_names: list of ~1604 feature name strings
+        # Returns: X_train_new, y_train, X_val_new, y_val
+    ```
+
+    CRITICAL RULES:
+    - NEVER use y_val for feature computation (label leakage)
+    - y_train CAN be used for target encoding, but val features must use train statistics
+    - Output sample counts must match input (1600 train, 400 val)
+    - X_train_new and X_val_new must have the same number of columns
+    - Use `idx = {name: i for i, name in enumerate(feature_names)}` for column lookup
+    - Use `col(X, name)` pattern: `X[:, idx[name]] if name in idx else np.zeros(X.shape[0])`
+
+    DATA STRUCTURE (already engineered from raw time-series):
+    The ~1604 features are derived from 401 base telecom features across 6 months:
+    - `feature` : current month (T) value (401 features)
+    - `feature__trend5` : T minus T-5 months, positive = increasing (401 features)
+    - `feature__trend1` : T minus T-1 month, positive = recent increase (401 features)
+    - `feature__vol` : std across 6 months, higher = more volatile (~401 features)
+
+    PRIOR KNOWLEDGE FROM STAGE 1 (Symbolic Regression):
+    Stage 1 found these features most predictive (ranked by mutual information):
+    1. data_usage_high_frequency_low_saturation_high_saturation__trend1 (MI=0.034)
+    2. long_term_data_silence__vol (MI=0.033)
+    3. arpu (MI=0.033)
+    4. network_quality_complaint_count__trend5 (MI=0.030)
+    5. is_changed_from_non_delegated_to_delegated_payment (MI=0.029)
+    6. flag_act_user__trend5 (MI=0.029)
+    7. cross_network_outgoing_call_ratio (MI=0.029)
+    8. arpu__trend5 (MI=0.028)
+    9. mnp_port_out_risk__trend5 (MI=0.026)
+    10. card2_dou_hb (MI=0.026)
+    11. is_sub_card__trend5 (MI=0.026)
+    12. primary_tariff_discount_rate__trend5 (MI=0.026)
+    13. family_cnt__vol (MI=0.026)
+    14. churn_risk (MI=0.025)
+    15. last_month_bill__trend1 (MI=0.025)
+    16. zztd_cnt (MI=0.025)
+    17. flag_64__trend1 (MI=0.024)
+    18. credit_class_name (MI=0.024)
+    19. card2_call_num_hb__trend1 (MI=0.024)
+    20. suspected_illegal_outbound_call_reach__vol (MI=0.024)
+
+    Key patterns discovered:
+    - Trends (__trend5, __trend1) are more predictive than raw current values
+    - Volatility (__vol) captures behavioral instability → dissatisfaction signal
+    - Complaint trends and churn risk are strong dissatisfaction signals
+    - ARPU changes indicate engagement shifts
+    - Many features have similar MI (~0.024-0.034), so combining multiple weak signals is key
+
+    FEATURE ENGINEERING STRATEGIES:
+    - Feature selection: pick features from the 1604 pool by name using idx dict
+    - Interactions: multiply related features (e.g., col(X,"arpu") * col(X,"churn_risk"))
+    - Ratios: divide related features (with safe denominator: denom + 1e-8)
+    - Nonlinear transforms: np.tanh, np.log1p(np.abs(...)), np.sign, x**2
+    - Piecewise: np.where(condition, val1, val2), np.maximum, np.clip
+    - Target encoding: mean(y_train) per bin (train stats only, apply to val)
+    - Binning: np.digitize for continuous features
+    - Explore beyond top-20: there are 1604 features, many untapped combinations
+    - Group features by domain: complaint features, usage features, payment features
+
+    SCORING: combined_score = XGBoost validation AUC for class 0 (dissatisfied)
+    Higher is better, max 1.0. Goal: push above 0.70.
+  num_top_programs: 4
+  use_template_stochasticity: true
+
+database:
+  population_size: 80
+  archive_size: 30
+  num_islands: 4
+  elite_selection_ratio: 0.3
+  exploitation_ratio: 0.6
+
+evaluator:
+  timeout: 180
+  cascade_evaluation: false
+  parallel_evaluations: 4
+  use_llm_feedback: false
+
+diff_based_evolution: true
+allow_full_rewrites: false

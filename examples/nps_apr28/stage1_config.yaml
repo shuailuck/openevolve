@@ -1,0 +1,94 @@
+max_iterations: 200
+checkpoint_interval: 10
+log_level: "INFO"
+target_score: "combined_score"
+
+llm:
+  primary_model: "gpt-4o"
+  primary_model_weight: 0.8
+  secondary_model: "o3"
+  secondary_model_weight: 0.2
+  api_base: "https://api.openai.com/v1"
+  temperature: 0.7
+  max_tokens: 8192
+  timeout: 120
+
+prompt:
+  system_message: |
+    You are an expert in symbolic regression for binary classification.
+
+    Your task is to evolve a Python function `func(x, params)` that predicts
+    telecom customer satisfaction (NPS: Net Promoter Score).
+
+    The function signature is:
+    ```python
+    def func(x: np.ndarray, params: np.ndarray) -> np.ndarray:
+    ```
+
+    - `x` is a 2D NumPy array of shape `(n_samples, 20)` containing selected features
+    - `params` is a 1D NumPy array of up to 15 optimizable parameters
+    - The function returns raw logit scores of shape `(n_samples,)`
+    - sigmoid(func(x, params)) = P(satisfied = 1)
+    - Parameters are optimized externally via L-BFGS-B on binary cross-entropy
+
+    Feature mapping (columns of x):
+      x[:,  0]: data_usage_high_frequency_low_saturation_high_saturation__trend1  (1-month trend of data_usage_high_frequency_low_saturation_high_saturation)
+      x[:,  1]: long_term_data_silence__vol  (volatility of long_term_data_silence)
+      x[:,  2]: arpu  (arpu, current month)
+      x[:,  3]: network_quality_complaint_count__trend5  (5-month trend of network_quality_complaint_count)
+      x[:,  4]: is_changed_from_non_delegated_to_delegated_payment  (is_changed_from_non_delegated_to_delegated_payment, current month)
+      x[:,  5]: flag_act_user__trend5  (5-month trend of flag_act_user)
+      x[:,  6]: cross_network_outgoing_call_ratio  (cross_network_outgoing_call_ratio, current month)
+      x[:,  7]: arpu__trend5  (5-month trend of arpu)
+      x[:,  8]: mnp_port_out_risk__trend5  (5-month trend of mnp_port_out_risk)
+      x[:,  9]: card2_dou_hb  (card2_dou_hb, current month)
+      x[:, 10]: is_sub_card__trend5  (5-month trend of is_sub_card)
+      x[:, 11]: primary_tariff_discount_rate__trend5  (5-month trend of primary_tariff_discount_rate)
+      x[:, 12]: family_cnt__vol  (volatility of family_cnt)
+      x[:, 13]: churn_risk  (churn_risk, current month)
+      x[:, 14]: last_month_bill__trend1  (1-month trend of last_month_bill)
+      x[:, 15]: zztd_cnt  (zztd_cnt, current month)
+      x[:, 16]: flag_64__trend1  (1-month trend of flag_64)
+      x[:, 17]: credit_class_name  (credit_class_name, current month)
+      x[:, 18]: card2_call_num_hb__trend1  (1-month trend of card2_call_num_hb)
+      x[:, 19]: suspected_illegal_outbound_call_reach__vol  (volatility of suspected_illegal_outbound_call_reach)
+
+    Feature types:
+      - __trend5 suffix: value_now - value_5_months_ago (positive = increasing over 5 months)
+      - __trend1 suffix: value_now - value_1_month_ago (positive = increasing recently)
+      - __vol suffix: std deviation across 6 monthly observations (higher = more volatile)
+      - No suffix: current month value
+      - All continuous features are approximately standardized (mean~0, std~1)
+
+    Scoring: combined_score = AUC on validation set (higher is better, max 1.0)
+    Parameters are optimized on training data only. Evaluation is on held-out validation data.
+    A random baseline achieves ~0.5. The initial linear model achieves ~0.55-0.60.
+    Your goal is to find an interpretable formula with validation AUC > 0.68.
+
+    Strategies to try:
+    - Feature interactions (e.g., x[:,2] * x[:,13] for arpu * churn_risk)
+    - Nonlinear transforms (np.tanh, np.log1p, np.abs, np.sign, np.sqrt(np.abs(...)))
+    - Piecewise functions (np.where, np.maximum, np.minimum)
+    - Polynomial terms (x**2, x**3)
+    - Combine trend and volatility features for richer temporal signals
+    - Keep the expression concise and interpretable
+    - Avoid overfitting: simpler expressions generalize better to validation
+    - Ensure numerical stability (no division by zero, no log of negative numbers)
+  num_top_programs: 4
+  use_template_stochasticity: true
+
+database:
+  population_size: 80
+  archive_size: 30
+  num_islands: 4
+  elite_selection_ratio: 0.3
+  exploitation_ratio: 0.6
+
+evaluator:
+  timeout: 120
+  cascade_evaluation: false
+  parallel_evaluations: 4
+  use_llm_feedback: false
+
+diff_based_evolution: true
+allow_full_rewrites: false

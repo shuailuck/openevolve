@@ -1,0 +1,16 @@
+def func(x, params):
+    """
+    Compute raw logit scores for NPS satisfaction prediction.
+
+    Args:
+        x: np.ndarray, shape (n_samples, 20) - selected features
+        params: np.ndarray, shape (15,) - optimizable parameters
+
+    Returns:
+        np.ndarray, shape (n_samples,) - raw logit scores
+    """
+    # Simple linear model as starting point
+    logit = params[14]  # bias
+    for i in range(min(14, x.shape[1])):
+        logit = logit + params[i] * x[:, i]
+    return logit

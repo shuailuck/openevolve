@@ -1,0 +1,22 @@
+[
+  "data_usage_high_frequency_low_saturation_high_saturation__trend1",
+  "long_term_data_silence__vol",
+  "arpu",
+  "network_quality_complaint_count__trend5",
+  "is_changed_from_non_delegated_to_delegated_payment",
+  "flag_act_user__trend5",
+  "cross_network_outgoing_call_ratio",
+  "arpu__trend5",
+  "mnp_port_out_risk__trend5",
+  "card2_dou_hb",
+  "is_sub_card__trend5",
+  "primary_tariff_discount_rate__trend5",
+  "family_cnt__vol",
+  "churn_risk",
+  "last_month_bill__trend1",
+  "zztd_cnt",
+  "flag_64__trend1",
+  "credit_class_name",
+  "card2_call_num_hb__trend1",
+  "suspected_illegal_outbound_call_reach__vol"
+]
