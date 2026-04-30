@@ -25,7 +25,7 @@ def extract_evolve_block(filepath):
 
 
 def expression_to_formula(expr, feature_names):
-    """Convert Stage 1 func(x, params) into a readable math formula."""
+    """Convert Stage 1 func(x, params) into a single readable math formula."""
 
     def _feat(m):
         i = int(m.group(1))
@@ -36,13 +36,11 @@ def expression_to_formula(expr, feature_names):
     bias_m = re.search(r"params\[(\d+)\]", expr)
     if loop_m and bias_m:
         n_terms = int(loop_m.group(1))
-        bias_idx = int(bias_m.group(1))
-        lines = [f"logit = b + w0 * {feature_names[0]}"]
-        for i in range(1, min(n_terms, len(feature_names))):
-            lines.append(f"     + w{i} * {feature_names[i]}")
-        return "\n".join(lines)
+        terms = [f"w{i} * {feature_names[i]}"
+                 for i in range(min(n_terms, len(feature_names)))]
+        return "logit = b + " + "\n     + ".join(terms)
 
-    # Case 2: evolved expression — strip boilerplate, replace indices
+    # Case 2: evolved expression — parse into one continuous formula
     body = expr
     body = re.sub(r'def\s+func\s*\([^)]*\)\s*:', '', body)
     body = re.sub(r'"""[\s\S]*?"""', '', body)
@@ -51,8 +49,34 @@ def expression_to_formula(expr, feature_names):
     body = re.sub(r"x\[:,\s*(\d+)\]", _feat, body)
     body = re.sub(r"params\[(\d+)\]", r"w\1", body)
     body = body.replace("np.", "")
+
     lines = [l.strip() for l in body.strip().splitlines() if l.strip()]
-    return "\n".join(lines)
+
+    intermediates = {}
+    initial = None
+    terms = []
+
+    for line in lines:
+        m = re.match(r"logit\s*=\s*(.+)", line)
+        if m:
+            initial = m.group(1).strip()
+            continue
+        m = re.match(r"logit\s*\+=\s*(.+)", line)
+        if m:
+            terms.append(m.group(1).strip())
+            continue
+        m = re.match(r"(\w+)\s*=\s*(.+)", line)
+        if m:
+            intermediates[m.group(1).strip()] = m.group(2).strip()
+
+    for var, val in intermediates.items():
+        terms = [t.replace(var, f"({val})") for t in terms]
+
+    if initial and re.match(r"w\d+$", initial):
+        initial = "b"
+
+    all_terms = ([initial] if initial else []) + terms
+    return "logit = " + "\n     + ".join(all_terms)
 
 
 def generate_config(stage1_formula, feature_names_s1, n_all):
