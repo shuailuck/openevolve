@@ -1,16 +1,16 @@
-def func(x, params):
-    """
-    Compute raw logit scores for NPS satisfaction prediction.
+# Source: F:\Work2026\NPS\openevolve-main\examples\nps_apr28\stage1_initial_program.py
 
-    Args:
-        x: np.ndarray, shape (n_samples, 20) - selected features
-        params: np.ndarray, shape (15,) - optimizable parameters
-
-    Returns:
-        np.ndarray, shape (n_samples,) - raw logit scores
-    """
-    # Simple linear model as starting point
-    logit = params[14]  # bias
-    for i in range(min(14, x.shape[1])):
-        logit = logit + params[i] * x[:, i]
-    return logit
+logit = b + w0 * data_usage_high_frequency_low_saturation_high_saturation__trend1
+     + w1 * long_term_data_silence__vol
+     + w2 * arpu
+     + w3 * network_quality_complaint_count__trend5
+     + w4 * is_changed_from_non_delegated_to_delegated_payment
+     + w5 * flag_act_user__trend5
+     + w6 * cross_network_outgoing_call_ratio
+     + w7 * arpu__trend5
+     + w8 * mnp_port_out_risk__trend5
+     + w9 * card2_dou_hb
+     + w10 * is_sub_card__trend5
+     + w11 * primary_tariff_discount_rate__trend5
+     + w12 * family_cnt__vol
+     + w13 * churn_risk

@@ -40,41 +40,32 @@ prompt:
     - Use `col(X, name)` pattern: `X[:, idx[name]] if name in idx else np.zeros(X.shape[0])`
 
     DATA STRUCTURE (already engineered from raw time-series):
-    The ~1604 features are derived from 401 base telecom features across 6 months:
-    - `feature` : current month (T) value (401 features)
-    - `feature__trend5` : T minus T-5 months, positive = increasing (401 features)
-    - `feature__trend1` : T minus T-1 month, positive = recent increase (401 features)
-    - `feature__vol` : std across 6 months, higher = more volatile (~401 features)
+    The ~1604 features are derived from ~401 base telecom features across 6 months:
+    - `feature` : current month (T) value
+    - `feature__trend5` : T minus T-5 months, positive = increasing
+    - `feature__trend1` : T minus T-1 month, positive = recent increase
+    - `feature__vol` : std across 6 months, higher = more volatile
 
     PRIOR KNOWLEDGE FROM STAGE 1 (Symbolic Regression):
-    Stage 1 found these features most predictive (ranked by mutual information):
-    1. data_usage_high_frequency_low_saturation_high_saturation__trend1 (MI=0.034)
-    2. long_term_data_silence__vol (MI=0.033)
-    3. arpu (MI=0.033)
-    4. network_quality_complaint_count__trend5 (MI=0.030)
-    5. is_changed_from_non_delegated_to_delegated_payment (MI=0.029)
-    6. flag_act_user__trend5 (MI=0.029)
-    7. cross_network_outgoing_call_ratio (MI=0.029)
-    8. arpu__trend5 (MI=0.028)
-    9. mnp_port_out_risk__trend5 (MI=0.026)
-    10. card2_dou_hb (MI=0.026)
-    11. is_sub_card__trend5 (MI=0.026)
-    12. primary_tariff_discount_rate__trend5 (MI=0.026)
-    13. family_cnt__vol (MI=0.026)
-    14. churn_risk (MI=0.025)
-    15. last_month_bill__trend1 (MI=0.025)
-    16. zztd_cnt (MI=0.025)
-    17. flag_64__trend1 (MI=0.024)
-    18. credit_class_name (MI=0.024)
-    19. card2_call_num_hb__trend1 (MI=0.024)
-    20. suspected_illegal_outbound_call_reach__vol (MI=0.024)
+    Stage 1 evolved a symbolic formula predicting NPS dissatisfaction:
+      sigmoid(logit) = P(satisfied), where w0..wN and b are optimized weights.
+      logit = b + w0 * data_usage_high_frequency_low_saturation_high_saturation__trend1
+           + w1 * long_term_data_silence__vol
+           + w2 * arpu
+           + w3 * network_quality_complaint_count__trend5
+           + w4 * is_changed_from_non_delegated_to_delegated_payment
+           + w5 * flag_act_user__trend5
+           + w6 * cross_network_outgoing_call_ratio
+           + w7 * arpu__trend5
+           + w8 * mnp_port_out_risk__trend5
+           + w9 * card2_dou_hb
+           + w10 * is_sub_card__trend5
+           + w11 * primary_tariff_discount_rate__trend5
+           + w12 * family_cnt__vol
+           + w13 * churn_risk
 
-    Key patterns discovered:
-    - Trends (__trend5, __trend1) are more predictive than raw current values
-    - Volatility (__vol) captures behavioral instability → dissatisfaction signal
-    - Complaint trends and churn risk are strong dissatisfaction signals
-    - ARPU changes indicate engagement shifts
-    - Many features have similar MI (~0.024-0.034), so combining multiple weak signals is key
+    Use this formula as guidance: the features and combinations it uses are strong
+    predictive signals. Select them and explore related features from the full 1604 pool.
 
     FEATURE ENGINEERING STRATEGIES:
     - Feature selection: pick features from the 1604 pool by name using idx dict
@@ -83,7 +74,6 @@ prompt:
     - Nonlinear transforms: np.tanh, np.log1p(np.abs(...)), np.sign, x**2
     - Piecewise: np.where(condition, val1, val2), np.maximum, np.clip
     - Target encoding: mean(y_train) per bin (train stats only, apply to val)
-    - Binning: np.digitize for continuous features
     - Explore beyond top-20: there are 1604 features, many untapped combinations
     - Group features by domain: complaint features, usage features, payment features
 
