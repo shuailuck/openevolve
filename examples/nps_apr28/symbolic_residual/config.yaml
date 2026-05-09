@@ -1,0 +1,70 @@
+# OpenEvolve configuration for symbolic residual regression
+# Goal: discover interpretable formulas that predict XGBoost residuals
+#        and explain why the model makes errors.
+max_iterations: 200
+checkpoint_interval: 10
+
+# LLM configuration — adjust api_base and model names to your provider
+llm:
+  primary_model: "Qwen3-30B-A3B-Instruct-2507"
+  primary_model_weight: 0.8
+  secondary_model: "Qwen3-30B-A3B-Instruct-2507"
+  secondary_model_weight: 0.2
+  api_base: "http://onlineservice.cn-east-3.roma.huawei.com:8085/csb-inner-service/rest/infers/214cfd35-3fb7-472f-9148-739c1ca328ce?endpoint=infer-modelarts-cn-east-3.myhuaweicloud.com&path=/v1"
+  temperature: 0.8
+  max_tokens: 16000
+  timeout: 120
+
+# Prompt configuration
+prompt:
+  system_message: |
+    system_message: |
+    You are an expert ML Engineer. Your task is to optimize the `predict_residual` function to improve an XGBoost classifier's AUC by modeling its residuals.
+
+    ### Goal:
+    Predict `residual = y_true - y_prob` using symbolic regression. 
+    A successful formula allows us to correct XGBoost's errors: `corrected_prob = clip(y_prob + predicted_residual)`.
+
+    ### Core Constraints (STRICT):
+    1. **Signature**: `predict_residual(df, params) -> np.ndarray`.
+    2. **Parametric Weights**: NEVER hardcode constants. Use `params[i]` (up to 20 params) as coefficients or thresholds so they can be optimized via BFGS.
+       *   *Bad*: `0.5 * feat0`
+       *   *Good*: `params[0] * feat0 + params[1] * feat1`
+    3. **Inputs**: `df` is a DataFrame with top 40 features. Access via `df.iloc[:, i].values` or `df['col'].values`.
+    4. **Output**: Must be a 1D numpy array of the same length as `df`.
+
+    ### Search Space & Priors:
+    - **Interactions**: `params[0] * feat_i * feat_j`, `feat_i / (feat_j + 1e-8)`
+    - **Nonlinear**: `np.log1p(np.abs(feat_i))`, `np.exp(np.clip(feat_i, -10, 10))`, `np.sqrt(np.abs(feat_i))`
+    - **Conditionals**: `np.where(feat_i > params[n], params[m] * feat_j, 0)`
+    - **Stability**: Always use `1e-8` for divisions, `np.abs()` for logs/sqrts, and `np.clip()` for exp/final output.
+
+    ### Strategy for Success:
+    - **Simplicity**: Minimal formulas generalize better. Focus on the strongest 5-10 features.
+    - **Focus**: The baseline AUC is 0.74. Target patterns that XGBoost missed (nonlinear interactions).
+    - **Direction**: Residuals are roughly in `[-1, 1]`. Ensure your output scale is reasonable.
+    - Focus on identifying subgroups where XGBoost fails. Use np.where to target specific feature ranges. Example: np.where(feat_i > params[0], params[1] * feat_j, params[2])
+
+    Final Code must be clean, stable, and only use `numpy` and `pandas`.
+  num_top_programs: 3
+  num_diverse_programs: 2
+
+# Database configuration
+database:
+  population_size: 50
+  archive_size: 20
+  num_islands: 3
+  elite_selection_ratio: 0.2
+  exploitation_ratio: 0.7
+  similarity_threshold: 0.99
+
+# Evaluator configuration
+evaluator:
+  timeout: 300
+  cascade_evaluation: false
+  cascade_thresholds: [0.2]
+  parallel_evaluations: 4
+
+# Evolution settings
+diff_based_evolution: true
+max_code_length: 20000
