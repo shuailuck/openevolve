@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 
 # 定义最大参数数量，BFGS 会根据这个长度进行优化
 MAX_NPARAMS = 20

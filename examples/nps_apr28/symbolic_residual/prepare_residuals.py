@@ -26,8 +26,6 @@ TOP_K = 40
 
 def load_data(path, target_col):
     df = pd.read_csv(path)
-    # Label flip: original 0 -> 1 (positive), original 1 -> 0 (negative)
-    df[target_col] = df[target_col].map({0: 1, 1: 0})
     X = df.drop(columns=[target_col])
     y = df[target_col]
     return X, y
@@ -44,7 +42,7 @@ def main():
     spw = neg_count / max(pos_count, 1)
     if spw < 1:
         spw = 1.0
-    print(f"Train Stats -> Positive (Orig 0): {pos_count}, Negative (Orig 1): {neg_count}")
+    print(f"Train Stats -> Positive: {pos_count}, Negative: {neg_count}")
     print(f"Scale Pos Weight: {spw:.2f}")
 
     # Train XGBoost baseline (exactly matching xgb_model.py)
@@ -62,7 +60,7 @@ def main():
     )
     model.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=100)
 
-    # Predict probabilities for positive class (flipped label 1)
+    # Predict probabilities for positive class
     train_prob = model.predict_proba(X_train)[:, 1]
     val_prob = model.predict_proba(X_val)[:, 1]
 

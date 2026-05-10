@@ -20,10 +20,6 @@ def load_data(path, target_col):
     # pandas 会自动处理 .gz 压缩
     df = pd.read_csv(path)
     
-    # 标签翻转：使原始 0 变为 1 (正类)，原始 1 变为 0 (负类)
-    # 翻转后，我们关注的目标（原0）就是现在的 Label 1
-    df[target_col] = df[target_col].map({0: 1, 1: 0})
-    
     X = df.drop(columns=[target_col])
     y = df[target_col]
     return X, y
@@ -37,14 +33,14 @@ def run_modeling():
     X_train, y_train = load_data(TRAIN_PATH, TARGET_COL)
     X_val, y_val = load_data(VAL_PATH, TARGET_COL)
     
-    # B. 计算权重 (针对翻转后的正类)
+    # B. 计算权重
     pos_count = (y_train == 1).sum()
     neg_count = (y_train == 0).sum()
     spw = neg_count / max(pos_count, 1)
     if spw < 1:
         spw = 1.0
     
-    print(f"Train Stats -> Positive (Orig 0): {pos_count}, Negative (Orig 1): {neg_count}")
+    print(f"Train Stats -> Positive: {pos_count}, Negative: {neg_count}")
     print(f"Scale Pos Weight: {spw:.2f}")
 
     # C. 定义模型
@@ -71,7 +67,7 @@ def run_modeling():
     print(f"\nTraining took: {time.time() - start_time:.2f}s")
 
     # -----------------------------------------------------
-    # 3. 评估分析 (针对翻转后的 Label 1)
+    # 3. 评估分析
     # -----------------------------------------------------
     # 预测概率和标签
     y_prob = model.predict_proba(X_val)[:, 1]
@@ -118,7 +114,7 @@ def run_modeling():
     # 可视化 PR 曲线
     plt.figure(figsize=(10, 6))
     plt.plot(recall, precision, 'b-', label=f'PR Curve (AUC = {auc(recall, precision):.4f})')
-    plt.xlabel('Recall (Original Label 0)')
+    plt.xlabel('Recall')
     plt.ylabel('Precision')
     plt.title('Precision-Recall Curve')
     plt.legend()

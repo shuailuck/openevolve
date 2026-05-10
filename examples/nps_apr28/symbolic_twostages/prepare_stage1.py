@@ -1,76 +1,43 @@
 """
-Prepare Stage 1 data for multi-group symbolic regression.
+Prepare data for Stage 1 symbolic regression with feature grouping.
 
-Steps:
-1. Load train_derived.csv.gz / val_derived.csv.gz
-2. Train an XGBoost baseline to compute per-feature importances
-3. Group features by base name (each base has up to 4 variants:
-   base, base__trend5, base__trend1, base__vol)
-4. Select top-K groups by summed importance
-5. Save group metadata as JSON (no per-group data files — evaluators read
-   the full CSV and extract group columns on the fly)
+Trains XGBoost to get feature importances, aggregates to base-feature level,
+groups top base features, and saves group metadata to stage1_groups.json.
 
-Run once before starting Stage 1.
+All groups share the same initial_program.py and evaluator.py — the group
+is selected at runtime via the STAGE1_GROUP_ID environment variable.
 """
 import os
 import json
+import numpy as np
 import pandas as pd
 from xgboost import XGBClassifier
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-# Data lives in the parent directory (examples/nps_apr28/data)
-DATA_DIR = os.path.join(os.path.dirname(BASE_DIR), "data")
+HERE = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(HERE, "..", "data")
 TARGET_COL = "target"
-TRAIN_PATH = os.path.join(DATA_DIR, "train_derived.csv.gz")
-VAL_PATH = os.path.join(DATA_DIR, "val_derived.csv.gz")
-TOP_K = 10  # Number of top groups to evolve
+
+NUM_GROUPS = 10
+BASES_PER_GROUP = 5  # ~20 derived features per group (5 bases * 4 derived = 20)
 
 
-def group_features_by_base(feature_cols):
-    """Group features by their base name."""
-    groups = {}
-    for col in feature_cols:
-        if col.endswith("__trend5"):
-            base = col[:-8]
-        elif col.endswith("__trend1"):
-            base = col[:-8]
-        elif col.endswith("__vol"):
-            base = col[:-5]
-        else:
-            base = col
-
-        if base not in groups:
-            groups[base] = []
-        groups[base].append(col)
-    return groups
+def load_data():
+    train_path = os.path.join(DATA_DIR, "train_derived.csv.gz")
+    val_path = os.path.join(DATA_DIR, "val_derived.csv.gz")
+    return pd.read_csv(train_path), pd.read_csv(val_path)
 
 
-def main():
-    print("Loading data...")
-    train_df = pd.read_csv(TRAIN_PATH)
-    val_df = pd.read_csv(VAL_PATH)
-
-    # Consistent with xgb_model.py: flip labels so original 0 -> 1 (positive)
-    train_df[TARGET_COL] = train_df[TARGET_COL].map({0: 1, 1: 0})
-    val_df[TARGET_COL] = val_df[TARGET_COL].map({0: 1, 1: 0})
-
+def train_xgboost(train_df, val_df):
+    """Train a lightweight XGBoost to get feature importances."""
     feature_cols = [c for c in train_df.columns if c != TARGET_COL]
-    print(f"Total features: {len(feature_cols)}")
-
-    # Group features
-    groups = group_features_by_base(feature_cols)
-    print(f"Total groups: {len(groups)}")
-
-    # Train XGBoost baseline for feature importances
-    print("\nTraining XGBoost baseline for importance ranking...")
     X_train = train_df[feature_cols]
     y_train = train_df[TARGET_COL]
     X_val = val_df[feature_cols]
     y_val = val_df[TARGET_COL]
 
-    pos_count = (y_train == 1).sum()
-    neg_count = (y_train == 0).sum()
-    spw = neg_count / max(pos_count, 1)
+    pos = (y_train == 1).sum()
+    neg = (y_train == 0).sum()
+    spw = neg / max(pos, 1)
     if spw < 1:
         spw = 1.0
 
@@ -78,51 +45,116 @@ def main():
         objective="binary:logistic",
         eval_metric="auc",
         scale_pos_weight=spw,
-        n_estimators=500,
+        n_estimators=300,
         max_depth=5,
-        learning_rate=0.01,
+        learning_rate=0.05,
         subsample=0.6,
         colsample_bytree=0.6,
         random_state=42,
     )
-    model.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=100)
+    model.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)
+    return model, feature_cols
 
-    importances = pd.Series(model.feature_importances_, index=feature_cols)
 
-    # Compute group importance as sum of member importances
-    group_importance = {}
-    for base, cols in groups.items():
-        group_importance[base] = importances[cols].sum()
+def aggregate_base_importance(model, feature_cols):
+    """Aggregate feature importance to base-feature level.
 
-    # Select top-K groups
-    sorted_groups = sorted(group_importance.items(), key=lambda x: x[1], reverse=True)
-    top_groups = sorted_groups[:TOP_K]
+    Each base feature has 4 derived columns: {base}, {base}__trend5,
+    {base}__trend1, {base}__vol.  We sum their importances.
+    """
+    importances = dict(zip(feature_cols, model.feature_importances_))
 
-    print(f"\nTop {TOP_K} groups selected:")
-    for rank, (base, imp) in enumerate(top_groups, 1):
-        cols = groups[base]
-        print(f"  {rank}. {base}: importance={imp:.4f}, cols={cols}")
+    base_importance = {}
+    for col in feature_cols:
+        if "__" in col:
+            base = col.rsplit("__", 1)[0]
+        else:
+            base = col
 
-    # Save metadata only (no per-group data files — evaluators read full CSV on demand)
-    print("\nSaving group metadata...")
-    metadata = {"num_groups": TOP_K, "groups": []}
-    for group_id, (base, imp) in enumerate(top_groups):
-        group_cols = groups[base]
-        metadata["groups"].append({
-            "id": group_id,
-            "base": base,
+        if base not in base_importance:
+            base_importance[base] = {"importance": 0.0, "cols": []}
+        base_importance[base]["importance"] += importances[col]
+        base_importance[base]["cols"].append(col)
+
+    return base_importance
+
+
+def create_groups(base_importance):
+    """Group top base features consecutively by importance."""
+    sorted_bases = sorted(
+        base_importance.items(), key=lambda x: x[1]["importance"], reverse=True
+    )
+
+    num_bases = NUM_GROUPS * BASES_PER_GROUP
+    top_bases = sorted_bases[:num_bases]
+
+    groups = []
+    for g in range(NUM_GROUPS):
+        start = g * BASES_PER_GROUP
+        end = start + BASES_PER_GROUP
+        group_bases = top_bases[start:end]
+
+        group_cols = []
+        group_importance = 0.0
+        for base_name, info in group_bases:
+            group_cols.extend(sorted(info["cols"]))
+            group_importance += info["importance"]
+
+        groups.append({
+            "id": g,
+            "bases": [b[0] for b in group_bases],
             "cols": group_cols,
-            "importance": float(imp),
+            "importance": float(group_importance),
         })
 
-    with open(os.path.join(DATA_DIR, "stage1_groups.json"), "w", encoding="utf-8") as f:
-        json.dump(metadata, f, indent=2)
+    return groups
+
+
+def main():
+    print("=" * 60)
+    print("Stage 1 Preparation: Feature Grouping for Symbolic Regression")
+    print("=" * 60)
+
+    print("\n[1/4] Loading data...")
+    train_df, val_df = load_data()
+    feature_cols = [c for c in train_df.columns if c != TARGET_COL]
+    print(f"  Train: {train_df.shape}, Val: {val_df.shape}")
+    print(f"  Features: {len(feature_cols)} derived columns")
+
+    print("\n[2/4] Training XGBoost for feature importance...")
+    model, feature_cols = train_xgboost(train_df, val_df)
+
+    print("\n[3/4] Aggregating importance by base feature + creating groups...")
+    base_imp = aggregate_base_importance(model, feature_cols)
+    print(f"  Unique base features: {len(base_imp)}")
+
+    sorted_bases = sorted(
+        base_imp.items(), key=lambda x: x[1]["importance"], reverse=True
+    )
+    print("  Top 15 base features by importance:")
+    for i, (name, info) in enumerate(sorted_bases[:15], 1):
+        print(f"    {i:2d}. {name:<45s} ({info['importance']:.5f})")
+
+    groups = create_groups(base_imp)
+    print(f"\n  Created {len(groups)} groups ({BASES_PER_GROUP} bases each):")
+    for g in groups:
+        print(
+            f"    Group {g['id']}: {len(g['cols'])} cols, "
+            f"importance={g['importance']:.4f}"
+        )
+
+    results_dir = os.path.join(HERE, "stage1_results")
+    os.makedirs(results_dir, exist_ok=True)
+
+    print("\n[4/4] Saving group metadata...")
+    metadata_path = os.path.join(results_dir, "stage1_groups.json")
+    with open(metadata_path, "w", encoding="utf-8") as f:
+        json.dump({"num_groups": len(groups), "groups": groups}, f, indent=2)
+    print(f"  Saved to {metadata_path}")
 
     print("\n" + "=" * 60)
-    print("Stage 1 data preparation complete.")
-    print(f"  Top groups: {TOP_K}")
-    print(f"  Full data: {TRAIN_PATH}, {VAL_PATH}")
-    print(f"  Metadata: {os.path.join(DATA_DIR, 'stage1_groups.json')}")
+    print("Preparation complete!")
+    print("Next: python run_stage1.py")
     print("=" * 60)
 
 

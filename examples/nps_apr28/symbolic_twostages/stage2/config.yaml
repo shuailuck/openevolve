@@ -1,0 +1,94 @@
+# Stage 2 Feature Engineering Configuration
+# Uses Stage 1 prior knowledge to guide high-order feature construction.
+max_iterations: 200
+checkpoint_interval: 10
+
+# LLM configuration
+llm:
+  primary_model: "Qwen3-30B-A3B-Instruct-2507"
+  primary_model_weight: 0.8
+  secondary_model: "Qwen3-30B-A3B-Instruct-2507"
+  secondary_model_weight: 0.2
+  api_base: "http://onlineservice.cn-east-3.roma.huawei.com:8085/csb-inner-service/rest/infers/214cfd35-3fb7-472f-9148-739c1ca328ce?endpoint=infer-modelarts-cn-east-3.myhuaweicloud.com&path=/v1"
+  temperature: 0.8
+  max_tokens: 16000
+  timeout: 120
+
+# Prompt configuration
+prompt:
+  system_message: |
+    You are an expert ML Engineer specializing in feature engineering for
+    tabular classification. Your task is to optimize the `make_features` function
+    to create high-order features that improve XGBoost AUC for NPS prediction.
+
+    ### Context:
+    Stage 1 of this pipeline ran symbolic regression on grouped features and
+    discovered several nonlinear formulas that predict NPS. These formulas
+    reveal multiplicative interactions, conditional patterns, and nonlinear
+    transformations that simple tree models tend to miss.
+
+    {{STAGE1_PRIORS}}
+
+    ### Your Task:
+    Optimize `make_features(df)` to generate engineered features that capture
+    the patterns discovered in Stage 1. The evaluator will:
+    1. Call `make_features` on train and val DataFrames
+    2. Concatenate your features with the original 1604 features
+    3. Train an XGBoost classifier
+    4. Score on validation AUC
+
+    ### Core Constraints (STRICT):
+    1. **Signature**: `make_features(df) -> pd.DataFrame`
+       - `df`: DataFrame with 1604 derived feature columns (no target column)
+       - Return: DataFrame with same number of rows, each column is a new feature
+    2. **No target leakage**: You only receive feature columns, not the target.
+    3. **Stability**: Handle missing values (`np.nan`), infinities, and edge cases.
+       Use `np.nan_to_num()`, `np.clip()`, or `df.fillna(0)` as needed.
+    4. **Performance**: Keep feature generation efficient. Avoid O(n^2) pairwise
+       operations across all 1604 columns — be selective.
+
+    ### Feature Engineering Strategies:
+    - **Interactions**: Multiply, divide, or combine features identified in Stage 1
+      formulas (e.g., `feat_a * feat_b`, `feat_a / (feat_b + 1e-8)`)
+    - **Polynomials**: Square or cube of key features
+    - **Nonlinear transforms**: `np.log1p`, `np.sqrt(np.abs(x))`, `np.square`
+    - **Ratios and differences**: Between related features (e.g., current vs trend)
+    - **Binned conditional features**: `np.where(feat > threshold, val_a, val_b)`
+    - **Aggregations**: Row-wise statistics across related feature groups
+
+    ### Feature Columns Naming Convention:
+    Each base feature X has 4 derived columns:
+    - `X`: current month value
+    - `X__trend5`: 5-month trend
+    - `X__trend1`: 1-month trend
+    - `X__vol`: historical volatility/std
+
+    ### Success Criteria:
+    - Maximize validation AUC (baseline ~0.74)
+    - Keep feature count reasonable (10-50 is ideal, max 200)
+    - Ensure your features are interpretable and numerically stable
+
+    Final code must use only `numpy` and `pandas`.
+
+  num_top_programs: 3
+  num_diverse_programs: 2
+
+# Database configuration
+database:
+  population_size: 50
+  archive_size: 20
+  num_islands: 3
+  elite_selection_ratio: 0.2
+  exploitation_ratio: 0.7
+  similarity_threshold: 0.99
+
+# Evaluator configuration
+evaluator:
+  timeout: 600
+  cascade_evaluation: true
+  cascade_thresholds: [0.1]
+  parallel_evaluations: 2
+
+# Evolution settings
+diff_based_evolution: true
+max_code_length: 30000
