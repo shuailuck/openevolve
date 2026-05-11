@@ -16,6 +16,12 @@ GROUPS_PATH = os.path.join(RESULTS_DIR, "stage1_groups.json")
 CONFIG_PATH = os.path.join(HERE, "stage1", "config.yaml")
 INITIAL_PROG = os.path.join(HERE, "stage1", "initial_program.py")
 EVALUATOR = os.path.join(HERE, "stage1", "evaluator.py")
+DATA_DIR = os.path.join(HERE, "..", "data")
+
+# Absolute paths — passed via env vars so that programs copied to /tmp
+# by OpenEvolve can still find their data files.
+GROUPS_PATH_ABS = os.path.abspath(GROUPS_PATH)
+DATA_DIR_ABS = os.path.abspath(DATA_DIR)
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
 RUNNER = os.path.join(REPO_ROOT, "openevolve-run.py")
@@ -27,6 +33,8 @@ def run_group(group_id, iterations=150):
 
     env = os.environ.copy()
     env["STAGE1_GROUP_ID"] = str(group_id)
+    env["STAGE1_GROUPS_PATH"] = GROUPS_PATH_ABS
+    env["STAGE1_DATA_DIR"] = DATA_DIR_ABS
 
     cmd = [
         sys.executable, RUNNER,

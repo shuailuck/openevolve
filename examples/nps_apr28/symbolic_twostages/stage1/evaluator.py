@@ -14,9 +14,8 @@ from scipy.optimize import minimize
 from sklearn.metrics import roc_auc_score
 from openevolve.evaluation_result import EvaluationResult
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR = os.path.join(HERE, "..", "..", "data")
-GROUPS_PATH = os.path.join(HERE, "..", "stage1_results", "stage1_groups.json")
+DATA_DIR = os.environ["STAGE1_DATA_DIR"]
+GROUPS_PATH = os.environ["STAGE1_GROUPS_PATH"]
 TARGET_COL = "target"
 
 # --- Load group config at import time ---

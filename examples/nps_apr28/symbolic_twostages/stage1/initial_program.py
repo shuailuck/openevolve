@@ -16,8 +16,7 @@ import os
 
 import numpy as np
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-GROUPS_PATH = os.path.join(HERE, "..", "stage1_results", "stage1_groups.json")
+GROUPS_PATH = os.environ["STAGE1_GROUPS_PATH"]
 
 _group_id = int(os.environ.get("STAGE1_GROUP_ID", 0))
 with open(GROUPS_PATH, "r") as f:
