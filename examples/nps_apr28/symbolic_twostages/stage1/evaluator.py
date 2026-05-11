@@ -28,6 +28,11 @@ GROUP_ID = _group["id"]
 GROUP_COLS = _group["cols"]
 
 
+def _feat_kwargs(X_df):
+    """Extract columns from DataFrame as keyword-argument dict for predict_nps."""
+    return {c: X_df[c].values for c in GROUP_COLS}
+
+
 def _sigmoid(x):
     return 1.0 / (1.0 + np.exp(-np.clip(x, -50, 50)))
 
@@ -54,9 +59,12 @@ def _compute_metrics(program_path):
 
     max_nparams = getattr(program, "MAX_NPARAMS", 20)
 
+    train_kwargs = _feat_kwargs(X_train)
+    val_kwargs = _feat_kwargs(X_val)
+
     def loss_func(p):
         try:
-            logits = program.predict_nps(X_train, p)
+            logits = program.predict_nps(p, **train_kwargs)
             prob = _sigmoid(logits)
             return _binary_cross_entropy(y_train, prob)
         except Exception:
@@ -66,13 +74,13 @@ def _compute_metrics(program_path):
     best_params = res.x
 
     # Train metrics
-    train_logits = program.predict_nps(X_train, best_params)
+    train_logits = program.predict_nps(best_params, **train_kwargs)
     train_prob = _sigmoid(train_logits)
     train_loss = _binary_cross_entropy(y_train, train_prob)
     train_auc = roc_auc_score(y_train, train_prob)
 
     # Val metrics
-    val_logits = program.predict_nps(X_val, best_params)
+    val_logits = program.predict_nps(best_params, **val_kwargs)
     val_prob = _sigmoid(val_logits)
     val_loss = _binary_cross_entropy(y_val, val_prob)
     val_auc = roc_auc_score(y_val, val_prob)
@@ -116,7 +124,7 @@ def evaluate_stage1(program_path):
         X_sample = sample_df[GROUP_COLS]
 
         max_nparams = getattr(program, "MAX_NPARAMS", 20)
-        logits = program.predict_nps(X_sample, np.zeros(max_nparams))
+        logits = program.predict_nps(np.zeros(max_nparams), **_feat_kwargs(X_sample))
 
         if not isinstance(logits, np.ndarray) or logits.shape[0] != 100:
             return EvaluationResult(

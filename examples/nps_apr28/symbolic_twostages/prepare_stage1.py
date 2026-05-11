@@ -18,7 +18,7 @@ DATA_DIR = os.path.join(HERE, "..", "data")
 TARGET_COL = "target"
 
 NUM_GROUPS = 2
-BASES_PER_GROUP = 5  # ~20 derived features per group (5 bases * 4 derived = 20)
+BASES_PER_GROUP = 4  # ~16 derived features per group (4 bases * 4 derived = 16)
 
 
 def load_data():

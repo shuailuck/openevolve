@@ -1,0 +1,61 @@
+{
+  "num_groups": 2,
+  "groups": [
+    {
+      "id": 0,
+      "bases": [
+        "avg_mou_bhd",
+        "churn_risk",
+        "tariff_complaint_count",
+        "arpu"
+      ],
+      "cols": [
+        "avg_mou_bhd__current",
+        "avg_mou_bhd__trend1",
+        "avg_mou_bhd__trend5",
+        "avg_mou_bhd__vol",
+        "churn_risk__current",
+        "churn_risk__trend1",
+        "churn_risk__trend5",
+        "churn_risk__vol",
+        "tariff_complaint_count__current",
+        "tariff_complaint_count__trend1",
+        "tariff_complaint_count__trend5",
+        "tariff_complaint_count__vol",
+        "arpu__current",
+        "arpu__trend1",
+        "arpu__trend5",
+        "arpu__vol"
+      ],
+      "importance": 0.02532774768769741
+    },
+    {
+      "id": 1,
+      "bases": [
+        "flag_64",
+        "network_quality_complaint_count",
+        "residence_city",
+        "has_conducted_data_expansion_product_in_last_three_months"
+      ],
+      "cols": [
+        "flag_64__current",
+        "flag_64__trend1",
+        "flag_64__trend5",
+        "flag_64__vol",
+        "network_quality_complaint_count__current",
+        "network_quality_complaint_count__trend1",
+        "network_quality_complaint_count__trend5",
+        "network_quality_complaint_count__vol",
+        "residence_city__current",
+        "residence_city__trend1",
+        "residence_city__trend5",
+        "residence_city__vol",
+        "has_conducted_data_expansion_product_in_last_three_months__current",
+        "has_conducted_data_expansion_product_in_last_three_months__trend1",
+        "has_conducted_data_expansion_product_in_last_three_months__trend5",
+        "has_conducted_data_expansion_product_in_last_three_months__vol"
+      ],
+      "importance": 0.021530747413635254
+    }
+  ]
+}
