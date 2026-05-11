@@ -58,7 +58,7 @@ prompt:
 
     ### Feature Columns Naming Convention:
     Each base feature X has 4 derived columns:
-    - `X`: current month value
+    - `X__current`: current month value
     - `X__trend5`: 5-month trend
     - `X__trend1`: 1-month trend
     - `X__vol`: historical volatility/std

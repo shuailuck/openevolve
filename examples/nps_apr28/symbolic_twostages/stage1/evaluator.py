@@ -138,7 +138,10 @@ def evaluate_stage2(program_path):
 
 
 if __name__ == "__main__":
-    result = evaluate(
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), "initial_program.py")
-    )
+    import sys
+    if len(sys.argv) > 1:
+        prog = sys.argv[1]
+    else:
+        prog = os.path.join(os.path.dirname(os.path.abspath(__file__)), "initial_program.py")
+    result = evaluate(prog)
     print(result.to_dict())

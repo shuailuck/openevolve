@@ -25,7 +25,7 @@ prompt:
     This is one group in a two-stage pipeline. The module-level variable GROUP_COLS
     lists the ~20 features assigned to this group. Inspect it to understand which
     features are available. Each feature comes from 4 derived variants of base
-    telecom features (current value, trend5, trend1, volatility).
+    telecom features (__current, __trend5, __trend1, __vol).
 
     ### Goal:
     Discover a formula that outputs NPS logits (promoter=0 / detractor=1).

@@ -82,7 +82,7 @@ def main():
 
     os.makedirs(RESULTS_DIR, exist_ok=True)
 
-    ITERATIONS = 150
+    ITERATIONS = 50
     results = {}
     for g in groups:
         rc = run_group(g["id"], iterations=ITERATIONS)

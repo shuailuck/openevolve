@@ -33,7 +33,7 @@ def engineer_features(df, base_features):
 
     for feat in base_features:
         # Current value (T)
-        engineered[feat] = df[feat].values
+        engineered[f"{feat}__current"] = df[feat].values
 
         t5_col = f"{feat}_T_5_M"
         t1_col = f"{feat}_T_1_M"
@@ -72,8 +72,11 @@ def describe_feature(name):
     elif name.endswith("__vol"):
         base = name[:-5]
         return f"volatility of {base}"
+    elif name.endswith("__current"):
+        base = name[:-9]
+        return f"current month {base}"
     else:
-        return f"{name}, current month"
+        return name
 
 
 def main():

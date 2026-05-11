@@ -17,7 +17,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(HERE, "..", "data")
 TARGET_COL = "target"
 
-NUM_GROUPS = 10
+NUM_GROUPS = 2
 BASES_PER_GROUP = 5  # ~20 derived features per group (5 bases * 4 derived = 20)
 
 
@@ -66,10 +66,7 @@ def aggregate_base_importance(model, feature_cols):
 
     base_importance = {}
     for col in feature_cols:
-        if "__" in col:
-            base = col.rsplit("__", 1)[0]
-        else:
-            base = col
+        base = col.rsplit("__", 1)[0] if "__" in col else col
 
         if base not in base_importance:
             base_importance[base] = {"importance": 0.0, "cols": []}
