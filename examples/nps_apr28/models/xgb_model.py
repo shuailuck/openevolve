@@ -107,9 +107,17 @@ def run_modeling():
 
     # 特征重要性分析 (得益于 DataFrame，这里直接带列名)
     importances = pd.Series(model.feature_importances_, index=X_train.columns)
-    top_features = importances.sort_values(ascending=False).head(15)
-    print("\nTop 15 Features:")
-    print(top_features)
+    top_features = importances.sort_values(ascending=False).head(100)
+
+    # 提取特征名列表
+    top_100_feature_names = top_features.index.tolist()
+
+    # 推荐存为文本文件，简单直观
+    with open(os.path.join(SAVE_DIR, "top_100_features.txt"), "w", encoding="utf-8") as f:
+        for feat in top_100_feature_names:
+            f.write(feat + "\n")
+
+    print(f"成功保存 {len(top_100_feature_names)} 个特征名到 top_100_features.txt")
 
     # 可视化 PR 曲线
     plt.figure(figsize=(10, 6))
