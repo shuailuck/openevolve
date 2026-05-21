@@ -133,7 +133,7 @@ def run_modeling():
 if __name__ == "__main__":
     DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
     TARGET_COL = "target"  
-    TRAIN_PATH = os.path.join(DATA_DIR, "train_derived.csv.gz")
-    VAL_PATH = os.path.join(DATA_DIR, "val_derived.csv.gz")
+    TRAIN_PATH = os.path.join(DATA_DIR, "train.csv.gz")
+    VAL_PATH = os.path.join(DATA_DIR, "val.csv.gz")
     os.makedirs(SAVE_DIR, exist_ok=True)
     run_modeling()
